@@ -1,0 +1,103 @@
+---
+title: "Predicting Exercise Quality"
+author: "Jinwoo Will Kim (jkim19)"
+date: "April 21, 2015"
+output: html_document
+---
+
+##Synopsis
+This report will examine exercise data of six health participants.  These participants were asked to perform one set of 10 repetitions of the Unilateral Bumbbell Biceps Curl in five different fashions.  The classes were as followed: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). (Read more: http://groupware.les.inf.puc-rio.br/har)
+
+Using this data, we build a random forest model using cross validation.  This particular model gave very good results in our "in sample"" and "out of sample"" error.  Using the model that we created we also preform a prediction on 20 different test cases.  In the appendix of this report, we also try a logistic model tree and see what our in sample and out of sample results are for that model.
+
+##Data Analysis
+First we load all of the libraries that we will use for our model building, training, prediction, and error analysis.
+```{r}
+suppressMessages(library(dplyr))
+library(ggplot2)
+suppressMessages(library(caret))
+suppressMessages(library(randomForest))
+```
+
+Now we load the given training data and the 20 different test cases we will try to predict later.
+```{r}
+pmltrainingdf <- read.csv("pml-training.csv", header=TRUE)
+pmltestingdf <- read.csv("pml-testing.csv", header=TRUE)
+```
+
+Let's split the training data in order to perform cross-validation.  Also, let's remove any missing values or values that are invalid to our analysis.  Our training set will be stored in a data frame called modtraindf and our test set will be stored in modtestdf
+```{r}
+set.seed(12345)
+inTrain = createDataPartition(pmltrainingdf$classe, p = 3/5)[[1]]
+traindf = pmltrainingdf[ inTrain,]
+testdf = pmltrainingdf[-inTrain,]
+
+missingvalues <- sapply(traindf, function(x) sum(is.na(x)))
+selectcol <- names(missingvalues[missingvalues == 0])
+selectcol <- selectcol[8:93]
+modtraindf <- traindf[,selectcol]
+blankvalues <- sapply(modtraindf, function(x) sum("" == x))
+selectcol2 <- names(blankvalues[blankvalues == 0])
+modtraindf <- modtraindf[,selectcol2]
+modtestdf <- testdf[,selectcol]
+modtestdf <- modtestdf[,selectcol2]
+```
+
+##Model Training, Cross-Validation, and Prediction
+Once we've trim down the data and selected the columns (variables) that we're interested in, we perform a random forest training to get our model fit.
+```{r}
+##random forest
+rfFit <- randomForest(classe ~ ., data = modtraindf, ntree = 100)
+```
+
+Now let's examine our in sample prediction and see our results.
+```{r}
+rfPred <- predict(rfFit, modtraindf, type = "response")
+confusionMatrix(rfPred, modtraindf$classe)
+```
+
+We actually get 100% accuracy for our training data.  Now let's see how our predictions are in our test data.  We expect that our accuracy will be close to 100%, slightly worse for out of sample data.
+```{r}
+rfTestPred <- predict(rfFit, modtestdf, type="response")
+confusionMatrix(rfTestPred, modtestdf$classe)
+```
+We're getting a 99.34% accuracy on our test data.  
+
+Now let's run our model on the 20 test cases that will used for submission.  
+```{r}
+testselectcol <- selectcol2
+testselectcol[53] <- "problem_id"
+modfinaltestdf <- pmltestingdf[,testselectcol]
+rfFinalTestPred <- predict(rfFit, modfinaltestdf, type="response")
+rfFinalTestPred
+```
+
+Create the 20 files that will be used for submission
+```{r}
+answers <- as.character(rfFinalTestPred)
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(answers)
+```
+
+##Conclusions
+Clearly, our accuracy results for our random forest model are very good.  We had 100% accuracy on our training data and 99.34% accuracy on our test data.  On this particular data set we are fairly confident in our predictions for the 20 test cases for submission.  One problem we might have with our results is the possiblity of overfitting.  These results do seem a little too good to be true and further study and data would help determine if our random forest model is overfitting.
+
+##Appendix
+We wanted to create one more model in order to compare with our random forest model.  We decided to train a logistic model tree and we see the results.  Overall, the accuracy of our in sample and out of sample predictions are slightly worse than what we found in our random forest model.
+
+```{r}
+#LMT
+lmtModelFit <- train(classe ~ ., method="LMT", data=modtraindf)
+lmtPred <- predict(lmtModelFit,modtraindf)
+confusionMatrix(lmtPred, modtraindf$classe)
+lmtTestPred <- predict(lmtModelFit,modtestdf)
+confusionMatrix(lmtTestPred, modtestdf$classe)
+```
+
+We got 99.87% accuracy on our training data and 97.77% accuracy on our test data.  Which is lower than our random forest model.
