@@ -1,6 +1,9 @@
 ##Practical Machine Learning Project
 
+Here's a link to my html submission:
+http://htmlpreview.github.io/?https://github.com/jkim19/PracticalMachineLearningProject/blob/master/weightLiftingSubmission.html
 
+--------------------------------------------
 
 Below is the full description of the project:
 
